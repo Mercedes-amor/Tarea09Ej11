@@ -15,18 +15,18 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.SessionAttributes;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.example.app.domain.Empleado;
 import com.example.app.domain.Genero;
+import com.example.app.exceptions.EmpleadoNotFoundException;
+import com.example.app.exceptions.EmpleadosEmptyException;
 import com.example.app.services.EmpleadoService;
 
 import jakarta.validation.Valid;
 
 @RestController
-// Sustituimos el @Controller por @RestController,
-// Estamos indicando que va a ser una API REST
 
-// Para que nos almacene la variable en la sesión y poder acceder a ella
 @SessionAttributes("txtErr")
 
 public class EmpleadoController {
@@ -34,68 +34,38 @@ public class EmpleadoController {
     @Autowired(required = true)
     EmpleadoService empleadoService;
 
-    // Las rutas deben ser lo más significativas posibles
-    // Cambiamos el "/" y "/list" por "/empleados"
     @GetMapping("/empleados")
     public List<Empleado> showList() {
-        // Quitamos todos los model.addAttribute
-        // y demás información que transmitíamos a la vista
 
-        // Solo pasamos todos los empleados y que sea el cliente
-        // el que organice la visualización como quiera.
-        // El status que devuelve será 200
-        return empleadoService.obtenerTodos();
-    }
+        // Primero instanciamos la lista de empleados
+        List<Empleado> listaEmpleados;
 
-    // Podríamos devolver directamente un Empleado si supiéramos que no hay opción
-    // de nulo.
-    // Pero para gestionar un return null lo que devolvemos es un ResponseEntity<?>
-    @GetMapping("/empleado/{id}")
-    public ResponseEntity<?> showOne(@PathVariable Long id) {
-
-        // Obteneos el empleado
-        Empleado empleado = empleadoService.obtenerPorId(id);
-
-        // Si encontramos el empleado
-        if (empleado != null) {
-            // Devolvemos status Ok y el empleado
-            // Sintaxis equivalente: ResponseEntity.ok(empleado);
-            return ResponseEntity.status(HttpStatus.OK).body(empleado);
-
-        } else {
-            // Si no encontramos el empleado devolvemos status NOT_FOUND
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        // Usamos el método obtenerTodos() dentro de un try-catch
+        // El catch captura la excepción y la lanza si es el caso
+        try {
+            listaEmpleados = empleadoService.obtenerTodos(); // Lanza 200 si todo ok
+        } catch (EmpleadosEmptyException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
         }
+        return listaEmpleados;
     }
 
-    // SE ELIMINA EL Mapping de presentación de formulario,
-    // Los datos ya no llegarán por formulario creado por nosotros
+    // Aquí ya declaramos que siempre devolverá un Empleado, ya que si hay alguna
+    // excepción el catch la recogerá y lanzará
+    @GetMapping("/empleado/{id}")
+    public Empleado showOne(@PathVariable Long id) {
 
-    // @GetMapping("/add")
-    // public String showNew(
-    // @RequestParam(required = false) Integer err,
-    // Model model) {
+        // Declaramos la variable para almacenar el empleado
+        Empleado empleado;
 
-    // // Para los errores genéricos que llegan por el @Valid
-    // // Como el formato del email o los campos vacíos.
-    // if (err != null) {
-    // model.addAttribute("textErr", "Hubo un error en los datos del formulario");
-    // }
+        try {
+            empleado = empleadoService.obtenerPorId(id); // Lanza 200 si todo ok
+        } catch (EmpleadoNotFoundException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        }
+        return empleado;
+    }
 
-    // // Para los errores que llegan por la excepción lanzada desde el servicio
-    // // Id repetido y salario <18000
-    // if (txtErr != null) {
-    // model.addAttribute("textErr", txtErr);
-    // // Reseteamos la variable
-    // txtErr = null;
-    // }
-    // model.addAttribute("empleadoForm", new Empleado());
-    // return "newFormView";
-    // }
-
-    // Rutas distintas como GET, PUT Y POST pueden tener la misma URL y no generar
-    // conflicto
-    // Ya que al ser verbos la petición entrará en el mapping correspondiente
     @PostMapping("/empleado/")
 
     // Añadimos el @RequestBody y eliminamos BindingResult (ya no aplicable)
@@ -120,73 +90,35 @@ public class EmpleadoController {
 
     }
 
-    // NUEVAMENTE ELIMINAMOS EL MAPPING PARA LA PRESENTACIÓN DE FORMULARIO (EDITAR)
-
-    // @GetMapping("/edit/{id}")
-    // public String getEdit(
-    // @PathVariable long id,
-    // @RequestParam(required = false) Integer err,
-    // Model model) {
-
-    // if (err != null) {
-    // model.addAttribute("text2Err", "Hubo un error en los datos actualizados");
-    // }
-
-    // Empleado empleado = empleadoService.obtenerPorId(id);
-    // model.addAttribute("empleadoForm", empleado);
-    // return "editFormView";
-    // }
-
     // EDITAR EMPLEADO
-    // Podríamos usar la misma ruta /empleado/ que en el POST
-    // Al ser verbos distintos (Put y Post), no generaría conflictos
     @PutMapping("/empleado/{id}")
     public ResponseEntity<?> showEdit(@PathVariable Long id,
             @Valid @RequestBody Empleado empleadoForm) {
 
-        // Primero buscamos el empleado a editar
-        Empleado empleado = empleadoService.obtenerPorId(id);
-
-        // Si NO encontramos el empleado
-        if (empleado == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        }
-
-        // Si encontramos el empleado lo editamos
-        empleado = empleadoService.actualizar(empleadoForm);
-
-        // Si editamos correctamente
-        if (empleado != null) {
-            // El status es 200, no 201 que es para creación
-            return ResponseEntity.ok().body(empleado);
-        } else {
-            // BadRequest (400)
-            return ResponseEntity.badRequest().body("Error en edición empleado");
+        try {
+            Empleado empleadoAEditar = empleadoService.actualizar(empleadoForm);
+            return ResponseEntity.status(HttpStatus.OK).body(empleadoAEditar);
+        } catch (EmpleadoNotFoundException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
         }
 
     }
 
     // BORRAR EMPLEADO
-
     @DeleteMapping("/empleado/{id}")
     public ResponseEntity<?> showDelete(@PathVariable Long id) {
 
-        // Primero buscamos el empleado a eliminar
-        Empleado empleado = empleadoService.obtenerPorId(id);
+        try {
+            empleadoService.eliminarPorId(id);
+            return ResponseEntity.status(HttpStatus.OK).build();
 
-        // Si NO encontramos el empleado
-        if (empleado == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        } catch (EmpleadoNotFoundException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
         }
-
-        // Si encontramos el empleado lo borramos
-        empleadoService.eliminarPorId(id);
-        // Código 204
-        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+       
     }
 
     // BUSCADORES
-
     @GetMapping("/bysalary/{salario}")
     public ResponseEntity<?> geBySalary(@PathVariable Float salario) {
 
@@ -211,11 +143,6 @@ public class EmpleadoController {
             return ResponseEntity.ok().body(empleado);
         }
     }
-
-    // @GetMapping("/findByName")
-    // public String showFindByName() {
-    // return "listView";
-    // }
 
     @PostMapping("/findByName")
     public ResponseEntity<?> showFindByName(
