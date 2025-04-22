@@ -60,6 +60,8 @@ public class SecurityConfig {
             // Rutas para todos los usuarios, incluidos los no registrados
             .requestMatchers("/api/auth/**","/h2-console").permitAll()
             .requestMatchers("/empleados").permitAll()
+            .requestMatchers("/error").permitAll()
+
             // Buscadores acceso a todos
             .requestMatchers("/bysalary/**", "/maxid/**",
                 "findByName/**", "/findByGenero/**")

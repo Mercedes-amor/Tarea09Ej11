@@ -67,6 +67,31 @@ public class EmpleadoServiceImplBd implements EmpleadoService {
     }
 
     public Empleado actualizar(Empleado empleado) {
+        Usuario usuarioActual = getUsuarioActual();
+    
+        // Buscar el empleado original en base de datos
+        Empleado empleadoExistente = empleadoRepository.findById(empleado.getId())
+                .orElseThrow(() -> new EmpleadoNotFoundException(empleado.getId()));
+    
+        // Comprobación de permisos
+        if (!empleadoExistente.getCreador().getId().equals(usuarioActual.getId())) {
+            throw new NoPermitidoException();
+        }
+    
+        if (empleado.getSalario() < 18000) {
+            throw new RuntimeException("El salario no puede ser inferior a 18.000€");
+        }
+    
+        // Actualizamos solo los campos necesarios
+        empleadoExistente.setNombre(empleado.getNombre());
+        empleadoExistente.setEmail(empleado.getEmail());
+        empleadoExistente.setSalario(empleado.getSalario());
+        empleadoExistente.setGenero(empleado.getGenero());
+  
+        return empleadoRepository.save(empleadoExistente);
+    }
+    
+    public Empleado actualizar2(Empleado empleado) {
         // Obtención del id del usuario actual
         Usuario usuarioActual = getUsuarioActual();
 
