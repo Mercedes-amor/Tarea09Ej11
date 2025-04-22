@@ -5,20 +5,35 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import com.example.app.domain.Empleado;
 import com.example.app.domain.Genero;
 import com.example.app.exceptions.EmpleadoNotFoundException;
 import com.example.app.exceptions.EmpleadosEmptyException;
+import com.example.app.exceptions.NoPermitidoException;
+import com.example.app.modelo.Usuario;
 import com.example.app.repositories.EmpleadoRepository;
+import com.example.app.repositories.UsuarioRepository;
+import com.example.app.security.UserDetailsImpl;
+import com.example.app.security.UserDetailsServiceImpl;
 
 @Service
 @Primary
 public class EmpleadoServiceImplBd implements EmpleadoService {
 
+    private final UserDetailsServiceImpl userDetailsServiceImpl;
+
     @Autowired
     EmpleadoRepository empleadoRepository;
+
+    @Autowired
+    UsuarioRepository usuarioRepository;
+
+    EmpleadoServiceImplBd(UserDetailsServiceImpl userDetailsServiceImpl) {
+        this.userDetailsServiceImpl = userDetailsServiceImpl;
+    }
 
     public List<Empleado> obtenerTodos() {
         List<Empleado> listaEmpleados = empleadoRepository.findAll(Sort.by(Sort.Direction.ASC, "nombre"));
@@ -52,6 +67,14 @@ public class EmpleadoServiceImplBd implements EmpleadoService {
     }
 
     public Empleado actualizar(Empleado empleado) {
+        // Obtención del id del usuario actual
+        Usuario usuarioActual = getUsuarioActual();
+
+        // Comprobación del usuario actual y del usuario que creó el Empleado
+        if (!empleado.getCreador().getId().equals(usuarioActual.getId())) {
+            throw new NoPermitidoException();
+        }
+
         // Comprobación de que el salario introducido no es menor a 18.000€,
         // Si es así lanza una excepción
         if (empleado.getSalario() < 18000) {
@@ -65,16 +88,43 @@ public class EmpleadoServiceImplBd implements EmpleadoService {
     }
 
     public void eliminarPorId(Long id) {
+        // Obtención del id del usuario actual
+        Usuario usuarioActual = getUsuarioActual();
+
+        // Comprobación del usuario actual y del usuario que creó el Empleado
+        if (id.equals(usuarioActual.getId())) {
+            throw new NoPermitidoException();
+        }
         Empleado empleadoABorrar = empleadoRepository.findById(id)
-        .orElseThrow(() -> new EmpleadoNotFoundException(id));
+                .orElseThrow(() -> new EmpleadoNotFoundException(id));
         empleadoRepository.deleteById(empleadoABorrar.getId());
     }
 
     public void eliminar(Empleado empleado) {
+        // Obtención del id del usuario actual
+        Usuario usuarioActual = getUsuarioActual();
+
+        // Comprobación del usuario actual y del usuario que creó el Empleado
+        if (!empleado.getCreador().getId().equals(usuarioActual.getId())) {
+            throw new NoPermitidoException();
+        }
         Empleado empleadoABorrar = empleadoRepository.findById(empleado.getId())
-        .orElseThrow(() -> new EmpleadoNotFoundException(empleado.getId()));
+                .orElseThrow(() -> new EmpleadoNotFoundException(empleado.getId()));
 
         empleadoRepository.delete(empleadoABorrar);
+    }
+
+    // OBTENER USUARIO ACTUAL
+    public Usuario getUsuarioActual() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+        if (principal instanceof UserDetailsImpl) {
+            Long userId = ((UserDetailsImpl) principal).getUserId();
+            return usuarioRepository.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+        } else {
+            throw new RuntimeException("Usuario no autenticado");
+        }
     }
 
     // BUSCADOR

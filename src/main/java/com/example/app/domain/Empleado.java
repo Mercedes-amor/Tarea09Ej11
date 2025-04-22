@@ -3,10 +3,14 @@ package com.example.app.domain;
 
 
 
+import com.example.app.modelo.Usuario;
+
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -37,4 +41,9 @@ public class Empleado {
     private Boolean enActivo;
     @NotNull
     private Genero genero;
+
+    //Incorporación relación con Empleado creado
+    @ManyToOne
+    @JoinColumn(name = "creador_id", nullable = false)
+    private Usuario creador;
 }
